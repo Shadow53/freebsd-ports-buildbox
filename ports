@@ -1,0 +1,159 @@
+#!/bin/sh
+
+. ~/.bin/common-funcs
+if [ -f ~/.config/ports/portsrc ]; then
+    . ~/.config/ports/portsrc
+fi
+
+if [ -z "$TMUX" ]; then
+    echo "This script requires to be run in tmux"
+    exit 1
+fi
+
+ports="local"
+jail="12amd64"
+set="workstation"
+file_base="$HOME/.config/ports/pkglist-"
+version="12.1-RELEASE"
+
+export DEFAULT_VERSIONS="python=3.7 python3=3.7"
+CONFIG_METHOD="${CONFIG_METHOD:-config-recursive}"
+PORTS_SYSTEM="${PORTS_SYSTEM:-synth}"
+PORT_DBDIR="${PORT_DBDIR:-$HOME/.config/ports/options}"
+PORTS_ROOT="${PORTS_ROOT:-/usr/ports}"
+
+if [ "$PORTS_SYSTEM" = "poudriere" ]; then
+    PORTS_ROOT="/usr/local/poudriere/ports/$ports"
+fi
+
+ALL_LISTS=""
+for f in "${file_base}"*; do
+    ALL_LISTS="$ALL_LISTS $(trim_prefix "$f" "$file_base")"
+done
+ALL="${ALL:-$ALL_LISTS}"
+
+system="$PORTS_SYSTEM"
+option="$1"
+shift;
+files="$@"
+
+if [ "$files" = "all" ]; then
+    files="$ALL"
+fi
+
+sync_options() {
+    echo "Syncing options"
+    if [ "$PORTS_SYSTEM" = "poudriere" ]; then
+        mount_path="/usr/local/etc/poudriere.d/$jail-$ports-$set-options"
+        as_root mkdir -p "$mount_path"
+        as_root rsync -zzrL --delete-after --progress "$PORT_DBDIR"/* "$mount_path"/
+        #as_root mount_nullfs -o rw "$PORT_DBDIR" "$mount_path"
+        oldwd="$(pwd)"
+        cd "$HOME/Development/freebsd/ports"
+        sh sync.sh global
+        cd "$oldwd"
+    elif [ "$PORTS_SYSTEM" = "synth" ]; then
+        db_path="/var/db/ports"
+        as_root mkdir -p "$db_path"
+        as_root rsync -crL --delete-after --progress "$PORT_DBDIR"/* "$db_path"/
+    fi
+}
+
+get_all_needed_ports() {
+    echo "Gathering list of required ports" 1>&2
+    all_ports=""
+    for file in $files; do
+	file="${file_base}${file}"
+        grep -v "^#" "$file" | grep -v '^[[:space:]]*$' | while IFS='' read -r p || [ -n "$p" ]; do
+	    flavor="$(echo $p | cut -d '@' -f 2)"
+	    port="$(echo $p | sed 's|@.*$||g')"
+	    if [ "$flavor" != "$p" ]; then
+	        flavor="FLAVOR=$flavor"
+	    else
+	        flavor=""
+	    fi
+	    echo "Adding $port and dependencies" 1>&2
+	    make $flavor -C "${PORTS_ROOT}/${port}" PORT_DBDIR="$PORT_DBDIR" all-depends-list
+        done
+    done | sort -u | sed -e "s|^$PORTS_ROOT||g" | sed -e "s|^/||g"
+}
+
+files_opt=""
+files_list=""
+if [ "$files" = "all" ]; then
+    echo "Selected package lists: $ALL"
+    for f in $ALL; do
+        files_opt="$files_opt -f ${file_base}${f}"
+        files_list="$files_list ${file_base}${f}"
+    done
+else
+    for f in $files; do
+        files_opt="$files_opt -f ${file_base}${f}"
+        files_list="$files_list ${file_base}${f}"
+    done
+fi
+
+pkg_dest="/usr/local/www/freebsd/pkg"
+pkg_dir=""
+if [ "$system" = "poudriere" ]; then
+    pkg_dir="/usr/local/poudriere/data/packages/12amd64-local-workstation/.latest"
+elif [ "$system" = "synth" ]; then
+    pkg_dir="/var/synth/live_packages"
+fi
+
+if [ "$option" = "options" ]; then
+    all_ports="$(get_all_needed_ports)"
+    num_ports="$(echo "$all_ports" | wc -w)"
+    num_cpu="$(sysctl -n hw.ncpu)"
+    num_per_window="$(($num_ports / ($num_cpu - 1)))"
+    
+    echo "All ports: $all_ports"
+
+    echo "Starting tmux windows to split work"
+    for i in $(seq 1 $num_cpu); do
+        ports="$(echo $all_ports | cut -f -$num_per_window -w)"
+	echo "Ports: $ports"
+	echo "# Ports: $num_ports" "CPU: $num_cpu" "Window: $num_per_window"
+	cat <<EOF > /tmp/portconfig-${i}.sh
+. ~/.bin/common-funcs
+for port in $ports; do 
+    flavor="\$(echo \$port | cut -d '@' -f 2)"
+    port="\$(echo \$port | sed 's|@.*$||g')"
+    if [ "\$flavor" != "\$port" ]; then
+        flavor="FLAVOR=\$flavor"
+    else
+        flavor=""
+    fi
+    echo "Configuring \$port"
+    as_root make \$flavor -C "${PORTS_ROOT}/\${port}" PORT_DBDIR="$PORT_DBDIR" config-conditional
+done
+#rm /tmp/portconfig-${i}.sh
+EOF
+	tmux new-window -d -- sh /tmp/portconfig-${i}.sh
+	if [ $i -ne $num_cpu ] && [ $(echo $all_ports | wc -w) -gt 0 ]; then
+            num_ports=$(($num_ports - $num_per_window))
+	    all_ports="$(echo $all_ports | cut -f $(($num_per_window + 1))- -w)"
+	fi
+    done
+elif [ "$option" = "devel" ]; then
+    ports-devel $@
+elif [ "$option" = "upload" ]; then
+    #ssh-add ~/.ssh/ramnode
+    if [ ! -z "$pkg_dir" ]; then
+        rsync -vrLizzh --delete-after --partial --progress $pkg_dir/* root@shadow53.com:$pkg_dest
+    fi
+elif [ "$option" = "download" ]; then
+    rsync -vrLizz --delete-after --progress root@shadow53.com:$pkg_dest/* /tmp/pkgs/
+    as_root rsync -vrLi /tmp/pkgs/* $pkg_dir
+elif [ "$option" = "update" ]; then
+    $0 update-ports
+    $0 options all
+    $0 build all
+elif [ "$option" = "view-log" ] || [ "$option" = "tail-log" ]; then
+    prog=less
+    [ "$option" = "tail-log" ] && prog="tail -n 20 -f"
+    $prog /usr/local/poudriere/data/logs/bulk/latest-per-pkg/$1/*/*
+    
+else
+    echo "$0 requires one of: build clean create devel options update update-ports"
+fi
