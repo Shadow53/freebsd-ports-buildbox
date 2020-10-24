@@ -2,28 +2,28 @@
 # vi: set ft=ruby :
 
 # Install vagrant-disksize to allow resizing the vagrant box disk.
-unless Vagrant.has_plugin?("vagrant-disksize")
-    raise  Vagrant::Errors::VagrantError.new, "vagrant-disksize plugin is missing. Please install it using 'vagrant plugin install vagrant-disksize' and rerun 'vagrant up'"
+unless Vagrant.has_plugin?('vagrant-disksize')
+    raise  Vagrant::Errors::VagrantError.new, 'vagrant-disksize plugin is missing. Please install it using "vagrant plugin install vagrant-disksize" and rerun "vagrant up"'
 end
 
 # All Vagrant configuration is done below. The "2" in Vagrant.configure
 # configures the configuration version (we support older styles for
 # backwards compatibility). Please don't change it unless you know what
 # you're doing.
-Vagrant.configure("2") do |config|
+Vagrant.configure('2') do |config|
   # The most common configuration options are documented and commented below.
   # For a complete reference, please see the online documentation at
   # https://docs.vagrantup.com.
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://vagrantcloud.com/search.
-  config.vm.box = "freebsd/FreeBSD-12.1-RELEASE"
-  config.vm.box_version = "2019.11.01"
+  config.vm.box = 'freebsd/FreeBSD-12.1-RELEASE'
+  config.vm.box_version = '2019.11.01'
   config.vm.boot_timeout = 600
 
   config.vm.guest = :freebsd
-  config.vm.synced_folder ".", "/vagrant", id: "vagrant-root", disabled: false
-  config.vm.base_mac = "080027D14C66"
+  config.vm.synced_folder '.', '/vagrant', id: 'vagrant-root', disabled: false
+  config.vm.base_mac = '080027D14C66'
 
   config.disksize.size = '150GB'
 
@@ -62,23 +62,23 @@ Vagrant.configure("2") do |config|
   # backing providers for Vagrant. These expose provider-specific options.
   # Example for VirtualBox:
   #
-  config.vm.provider "virtualbox" do |vb|
+  config.vm.provider 'virtualbox' do |vb|
     # Display the VirtualBox GUI when booting the machine
     vb.gui = true
-    vb.name = "ports_builder"
+    vb.name = 'ports_builder'
     vb.cpus = Integer(`nproc`) - 1
     vb.memory = 8192
 
-    vb.customize ["modifyvm", :id, "--hwvirtex", "on"]
-    vb.customize ["modifyvm", :id, "--audio", "none"]
-    vb.customize ["modifyvm", :id, "--nictype1", "virtio"]
-    vb.customize ["modifyvm", :id, "--nictype2", "virtio"]
+    vb.customize ['modifyvm', :id, '--hwvirtex', 'on']
+    vb.customize ['modifyvm', :id, '--audio', 'none']
+    vb.customize ['modifyvm', :id, '--nictype1', 'virtio']
+    vb.customize ['modifyvm', :id, '--nictype2', 'virtio']
   end
   #
   # View the documentation for the provider you are using for more
   # information on available options.
 
-  config.ssh.shell = "sh"
+  config.ssh.shell = 'sh'
 
   # Enable provisioning with a shell script. Additional provisioners such as
   # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
@@ -87,7 +87,7 @@ Vagrant.configure("2") do |config|
   #   apt-get update
   #   apt-get install -y apache2
   # SHELL
-  config.vm.provision :shell, path: "bootstrap.sh" 
+  config.vm.provision :shell, path: 'bootstrap.sh'
 
   config.vm.network :forwarded_port, guest: 80, host: 8282
 end
