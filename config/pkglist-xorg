@@ -1,0 +1,17 @@
+devel/libevdev
+x11/libinput
+x11/libwacom
+x11/xauth
+x11/xinit
+x11/xrandr
+x11/xrdb
+x11-drivers/xf86-input-joystick
+x11-drivers/xf86-input-libinput
+x11-drivers/xf86-input-wacom
+x11-drivers/xf86-video-amdgpu
+x11-drivers/xf86-video-intel
+x11-drivers/xf86-video-scfb
+x11-drivers/xf86-video-vesa
+x11-drivers/xorg-drivers
+x11-servers/xorg-server
+

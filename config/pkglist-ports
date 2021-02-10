@@ -1,0 +1,6 @@
+ports-mgmt/portlint
+ports-mgmt/portscout
+ports-mgmt/portshaker
+ports-mgmt/portshaker-config
+ports-mgmt/porttools
+ports-mgmt/poudriere

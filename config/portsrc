@@ -1,0 +1,4 @@
+#DELETE_PORTS="devel/tex-kpathsea devel/tex-libtexlua devel/tex-libtexlua devel/tex-synctex devel/tex-web2c print/tex-aleph print/tex-basic-engines print/tex-dvipdfmx print/tex-dvipsk print/tex-formats print/tex-jadetex print/tex-luatex print/tex-ptexenc print/tex-xdvik print/tex-xetex print/tex-xmltex print/texlive-base print/texlive-docs print/texlive-full print/texlive-texmf-source print/texlive-texmf print/texlive-tlmgr"
+PORTS_SYSTEM="poudriere"
+PORTS_DIR="/home/shadow53/Development/freebsd/ports-custom"
+ALL="base cli desktop devel games ports server virt wm xfce xorg"

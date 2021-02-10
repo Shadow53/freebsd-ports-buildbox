@@ -17,13 +17,17 @@ Vagrant.configure('2') do |config|
 
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://vagrantcloud.com/search.
-  config.vm.box = 'freebsd/FreeBSD-12.1-RELEASE'
-  config.vm.box_version = '2019.11.01'
+  config.vm.box = 'freebsd/FreeBSD-12.2-RELEASE'
+  config.vm.box_version = '2020.10.23'
   config.vm.boot_timeout = 600
 
   config.vm.guest = :freebsd
   config.vm.synced_folder '.', '/vagrant', id: 'vagrant-root', disabled: false
+  config.vm.synced_folder './config', '/home/vagrant/.config/ports', id: 'ports-config', disabled: false
+  config.vm.synced_folder './options', '/home/vagrant/.config/ports/options', id: 'ports-options', disabled: false
+  #config.vm.synced_folder './packages', '/usr/local/poudriere/data/'
   config.vm.base_mac = '080027D14C66'
+  config.ssh.keep_alive = true
 
   config.disksize.size = '150GB'
 
@@ -73,6 +77,7 @@ Vagrant.configure('2') do |config|
     vb.customize ['modifyvm', :id, '--audio', 'none']
     vb.customize ['modifyvm', :id, '--nictype1', 'virtio']
     vb.customize ['modifyvm', :id, '--nictype2', 'virtio']
+    vb.customize ['modifyvm', :id, '--cableconnected1', 'on']
   end
   #
   # View the documentation for the provider you are using for more

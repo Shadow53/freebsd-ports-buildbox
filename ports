@@ -1,24 +1,43 @@
 #!/bin/sh
 
-. ~/.bin/common-funcs
+# Trims the given prefix from the given string.
+# String cannot contain the pipe character
+# Arguments:
+# $1 - The string
+# $2 - The prefix
+trim_prefix() {
+    echo "$1" | sed "s|^$2||"
+}
+
+# Trims the given suffix from the given string.
+# String cannot contain the pipe character
+# Arguments:
+# $1 - The string
+# $2 - The suffix
+trim_suffix() {
+    echo "$1" | sed "s|$2\$||"
+}
+
+requires_tmux() {
+    if [ -z "$TMUX" ]; then
+        echo "This script/target requires to be run in tmux"
+        exit 1
+    fi
+}
+
 if [ -f ~/.config/ports/portsrc ]; then
     . ~/.config/ports/portsrc
-fi
-
-if [ -z "$TMUX" ]; then
-    echo "This script requires to be run in tmux"
-    exit 1
 fi
 
 ports="local"
 jail="12amd64"
 set="workstation"
 file_base="$HOME/.config/ports/pkglist-"
-version="12.1-RELEASE"
+version="12.2-RELEASE"
 
 export DEFAULT_VERSIONS="python=3.7 python3=3.7"
 CONFIG_METHOD="${CONFIG_METHOD:-config-recursive}"
-PORTS_SYSTEM="${PORTS_SYSTEM:-synth}"
+PORTS_SYSTEM="${PORTS_SYSTEM:-poudriere}"
 PORT_DBDIR="${PORT_DBDIR:-$HOME/.config/ports/options}"
 PORTS_ROOT="${PORTS_ROOT:-/usr/ports}"
 
@@ -45,17 +64,17 @@ sync_options() {
     echo "Syncing options"
     if [ "$PORTS_SYSTEM" = "poudriere" ]; then
         mount_path="/usr/local/etc/poudriere.d/$jail-$ports-$set-options"
-        as_root mkdir -p "$mount_path"
-        as_root rsync -zzrL --delete-after --progress "$PORT_DBDIR"/* "$mount_path"/
-        #as_root mount_nullfs -o rw "$PORT_DBDIR" "$mount_path"
+        sudo mkdir -p "$mount_path"
+        sudo rsync -zzrL --delete-after --progress "$PORT_DBDIR"/* "$mount_path"/
+        #sudo mount_nullfs -o rw "$PORT_DBDIR" "$mount_path"
         oldwd="$(pwd)"
         cd "$HOME/Development/freebsd/ports"
         sh sync.sh global
         cd "$oldwd"
     elif [ "$PORTS_SYSTEM" = "synth" ]; then
         db_path="/var/db/ports"
-        as_root mkdir -p "$db_path"
-        as_root rsync -crL --delete-after --progress "$PORT_DBDIR"/* "$db_path"/
+        sudo mkdir -p "$db_path"
+        sudo rsync -crL --delete-after --progress "$PORT_DBDIR"/* "$db_path"/
     fi
 }
 
@@ -102,6 +121,7 @@ elif [ "$system" = "synth" ]; then
 fi
 
 if [ "$option" = "options" ]; then
+    requires_tmux
     all_ports="$(get_all_needed_ports)"
     num_ports="$(echo "$all_ports" | wc -w)"
     num_cpu="$(sysctl -n hw.ncpu)"
@@ -115,7 +135,6 @@ if [ "$option" = "options" ]; then
 	echo "Ports: $ports"
 	echo "# Ports: $num_ports" "CPU: $num_cpu" "Window: $num_per_window"
 	cat <<EOF > /tmp/portconfig-${i}.sh
-. ~/.bin/common-funcs
 for port in $ports; do 
     flavor="\$(echo \$port | cut -d '@' -f 2)"
     port="\$(echo \$port | sed 's|@.*$||g')"
@@ -125,7 +144,7 @@ for port in $ports; do
         flavor=""
     fi
     echo "Configuring \$port"
-    as_root make \$flavor -C "${PORTS_ROOT}/\${port}" PORT_DBDIR="$PORT_DBDIR" config-conditional
+    sudo make \$flavor -C "${PORTS_ROOT}/\${port}" PORT_DBDIR="$PORT_DBDIR" config-conditional
 done
 #rm /tmp/portconfig-${i}.sh
 EOF
@@ -135,16 +154,22 @@ EOF
 	    all_ports="$(echo $all_ports | cut -f $(($num_per_window + 1))- -w)"
 	fi
     done
-elif [ "$option" = "devel" ]; then
-    ports-devel $@
+elif [ "$option" = "create" ]; then
+    if [ "$system" = "poudriere" ]; then
+        #sudo ee /usr/local/etc/poudriere.conf
+        sudo poudriere jail -c -j "$jail" -v "$version"
+        sudo poudriere ports -c -p "$ports"
+    elif [ "$system" = "synth" ]; then
+        sudo synth configure
+    fi
 elif [ "$option" = "upload" ]; then
     #ssh-add ~/.ssh/ramnode
     if [ ! -z "$pkg_dir" ]; then
-        rsync -vrLizzh --delete-after --partial --progress $pkg_dir/* root@shadow53.com:$pkg_dest
+        rsync -vrLizzh --delete-after --partial --progress $pkg_dir/* /vagrant/packages/
     fi
 elif [ "$option" = "download" ]; then
     rsync -vrLizz --delete-after --progress root@shadow53.com:$pkg_dest/* /tmp/pkgs/
-    as_root rsync -vrLi /tmp/pkgs/* $pkg_dir
+    sudo rsync -vrLi /tmp/pkgs/* $pkg_dir
 elif [ "$option" = "update" ]; then
     $0 update-ports
     $0 options all
@@ -155,5 +180,5 @@ elif [ "$option" = "view-log" ] || [ "$option" = "tail-log" ]; then
     $prog /usr/local/poudriere/data/logs/bulk/latest-per-pkg/$1/*/*
     
 else
-    echo "$0 requires one of: build clean create devel options update update-ports"
+    echo "$0 requires one of: build clean create options update update-ports"
 fi
